@@ -2,7 +2,7 @@
 
 An interactive browser tool for exploring and tuning **Pinna's Intertwining Illusion** — an optical illusion where concentric rings of tilted squares appear to spiral and intertwine. Discovered by Baingio Pinna (University of Sassari, Italy).
 
-[**Try it live →**](index.html)
+[**Try it live →**](https://uxrrr.github.io/pinna-interlocking/)
 
 ## What is the illusion?
 
