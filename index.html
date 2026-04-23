@@ -281,7 +281,7 @@
 <body>
 
 <div id="tabbar">
-  <div class="tab active" data-page="tuner">Tuner</div>
+  <div class="tab active" data-page="tuner">Pinna</div>
   <div class="tab" data-page="ouchi">Ouchi</div>
   <div class="tab" data-page="about">About</div>
 </div>
@@ -370,6 +370,14 @@
     <label>Color B</label>
     <input type="color" id="ofg" value="#000000">
     <span id="v-ofg-rgb" class="color-rgb">0 0 0</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+    <label style="font-size:12px;color:var(--c-text-sub);flex:1;">Border</label>
+    <select id="oborder" style="width:auto;min-width:110px;">
+      <option value="none">None</option>
+      <option value="A">Color A</option>
+      <option value="B">Color B</option>
+    </select>
   </div>
 
   <hr>
@@ -727,7 +735,7 @@ draw(rotationAngle);
 
 // ── Ouchi illusion ─────────────────────────────────────
 const OUCHI_PRESET_KEY = 'ouchi_presets';
-const OUCHI_PARAM_IDS = ['orectW','orectH','odiscR','obg','ofg','orotspeed','ocols','orows'];
+const OUCHI_PARAM_IDS = ['orectW','orectH','odiscR','obg','ofg','orotspeed','ocols','orows','oborder'];
 const OUCHI_BUILTIN_PRESETS = {
   'Default':        { orectW:'40', orectH:'10', odiscR:'180', obg:'#ffffff', ofg:'#000000', orotspeed:'10', ocols:'20', orows:'60' },
   'Orange & Green': { orectW:'40', orectH:'10', odiscR:'95',  obg:'#e87911', ofg:'#178259', orotspeed:'10', ocols:'25', orows:'60' },
@@ -762,6 +770,7 @@ function readOuchiParams() {
     rotspeed: parseFloat($('orotspeed').value),
     cols:     parseFloat($('ocols').value),
     rows:     parseFloat($('orows').value),
+    border:   $('oborder').value,
   };
 }
 
@@ -796,9 +805,18 @@ function drawOuchi(globalRot) {
   c.fillStyle = p.colorA;
   c.fillRect(0, 0, cW, cH);
 
-  // Background: rotates with animation; bleed covers corners when rotated
+  const frameT = p.border === 'none' ? 0
+    : Math.ceil(Math.max(p.rectW, p.rectH) * Math.SQRT1_2) + 1;
+
+  // Background: rotates with animation; bleed covers corners when rotated.
+  // When framed, clip to inset rect so rotated slivers are hidden under frame.
   const diagHalf = rot ? Math.sqrt(cW * cW + cH * cH) / 2 : 0;
   c.save();
+  if (frameT > 0) {
+    c.beginPath();
+    c.rect(frameT, frameT, cW - 2 * frameT, cH - 2 * frameT);
+    c.clip();
+  }
   c.translate(cx, cy);
   c.rotate(rot);
   c.translate(-cx, -cy);
@@ -812,6 +830,15 @@ function drawOuchi(globalRot) {
   c.clip();
   tileRects(c, cW, cH, p.rectH, p.rectW, p.colorA, p.colorB);
   c.restore();
+
+  // Border: solid frame, thickness covers worst-case rotated-tile bleed
+  if (frameT > 0) {
+    c.fillStyle = p.border === 'A' ? p.colorA : p.colorB;
+    c.fillRect(0, 0, cW, frameT);
+    c.fillRect(0, cH - frameT, cW, frameT);
+    c.fillRect(0, 0, frameT, cH);
+    c.fillRect(cW - frameT, 0, frameT, cH);
+  }
 }
 
 // ── Ouchi SVG export ───────────────────────────────────
@@ -839,13 +866,29 @@ function exportOuchiSVG() {
     return out;
   }
 
+  const frameT = p.border === 'none' ? 0
+    : Math.ceil(Math.max(p.rectW, p.rectH) * Math.SQRT1_2) + 1;
+
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">\n`;
+  svg += `<defs>`;
+  svg += `<clipPath id="disc"><circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${p.discR}"/></clipPath>`;
+  if (frameT > 0) {
+    svg += `<clipPath id="frame"><rect x="${frameT}" y="${frameT}" width="${W - 2*frameT}" height="${H - 2*frameT}"/></clipPath>`;
+  }
+  svg += `</defs>\n`;
   svg += `<rect width="${W}" height="${H}" fill="${p.colorA}"/>\n`;
-  svg += `<g transform="rotate(${rotDeg},${cx.toFixed(2)},${cy.toFixed(2)})">\n`;
+  const bgClip = frameT > 0 ? ` clip-path="url(#frame)"` : '';
+  svg += `<g${bgClip} transform="rotate(${rotDeg},${cx.toFixed(2)},${cy.toFixed(2)})">\n`;
   svg += svgTiles(p.rectW, p.rectH, null, diagHalf);
   svg += `</g>\n`;
-  svg += `<defs><clipPath id="disc"><circle cx="${cx.toFixed(2)}" cy="${cy.toFixed(2)}" r="${p.discR}"/></clipPath></defs>\n`;
   svg += svgTiles(p.rectH, p.rectW, 'disc', 0);
+  if (frameT > 0) {
+    const bc = p.border === 'A' ? p.colorA : p.colorB;
+    svg += `<rect x="0" y="0" width="${W}" height="${frameT}" fill="${bc}"/>\n`;
+    svg += `<rect x="0" y="${H - frameT}" width="${W}" height="${frameT}" fill="${bc}"/>\n`;
+    svg += `<rect x="0" y="0" width="${frameT}" height="${H}" fill="${bc}"/>\n`;
+    svg += `<rect x="${W - frameT}" y="0" width="${frameT}" height="${H}" fill="${bc}"/>\n`;
+  }
   svg += '</svg>';
 
   const blob = new Blob([svg], { type: 'image/svg+xml' });
